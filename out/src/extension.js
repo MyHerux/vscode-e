@@ -9,65 +9,94 @@ function activate(context) {
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
     console.log('Congratulations, your extension "x" is now active!');
-    // create a new word counter
-    let wordCounter = new WordCounter();
-    let disposable = vscode_1.commands.registerCommand('extension.sayHello', () => {
-        wordCounter.updateWordCount();
+    // Get settings
+    //let settings = workspace.getConfiguration().get("tomatoTimer");
+    let shortToLongTime = 3;
+    let timerStart = vscode_1.commands.registerCommand('pomodoro.start', () => {
+        vscode_1.window
+            .showQuickPick(['10 minutes', '20 minutes', '25 minutes', '45 minutes', '60 minutes'])
+            .then((time) => {
+            console.log('time:' + time);
+            if (typeof time == 'undefined') {
+                return false;
+            }
+            let timePomo = parseInt(time);
+            vscode_1.window.showInformationMessage('Pomodoro start with ' + time + '!');
+            let pomodoro = new Pomodoro(Status.pomodoro, timePomo * 60, shortToLongTime);
+            let pomodoroController = new PomodoroController(pomodoro);
+        });
     });
-    // Add to a list of disposables which are disposed when this extension is deactivated.
-    context.subscriptions.push(wordCounter);
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(timerStart);
 }
 exports.activate = activate;
-class WordCounter {
-    updateWordCount() {
-        // Create as needed
-        if (!this._statusBarItem) {
-            this._statusBarItem = vscode_1.window.createStatusBarItem(vscode_1.StatusBarAlignment.Left);
-        }
-        // Get the current text editor
-        let editor = vscode_1.window.activeTextEditor;
-        if (!editor) {
-            this._statusBarItem.hide();
-            return;
-        }
-        let doc = editor.document;
-        let wordCount = this._getWordCount(doc);
-        // Update the status bar
-        this._statusBarItem.text = wordCount !== 1 ? `${wordCount} Words` : '1 Word';
+var Status;
+(function (Status) {
+    Status["pomodoro"] = "pomodoro";
+    Status["shortBreak"] = "shortBreak";
+    Status["longBreak"] = "longBreak";
+})(Status || (Status = {}));
+class PomodoroController {
+    constructor(pompdoro) {
+        this._pompdoro = pompdoro;
+        this._statusBarItem = vscode_1.window.createStatusBarItem(vscode_1.StatusBarAlignment.Left, 0);
+        this._statusBarItem.command = 'timer.start';
+        this._statusBarItem.tooltip = 'Click to start a pomodoro';
         this._statusBarItem.show();
-    }
-    _getWordCount(doc) {
-        let docContent = doc.getText();
-        // Parse out unwanted whitespace so the split is accurate
-        docContent = docContent.replace(/(< ([^>]+)<)/g, '').replace(/\s+/g, ' ');
-        docContent = docContent.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
-        let wordCount = 0;
-        if (docContent != "") {
-            wordCount = docContent.split(" ").length;
-        }
-        return wordCount;
+        this._interval = setInterval(() => this.refreshUI(), 1000);
+        this.refreshUI();
     }
     dispose() {
         this._statusBarItem.dispose();
+        clearInterval(this._interval);
+    }
+    refreshUI() {
+        let text = this._pompdoro.timer();
+        if (text) {
+            this._statusBarItem.text = text;
+            this._statusBarItem.command = 'timer.cancel';
+            this._statusBarItem.tooltip = 'Cancel';
+        }
+        else {
+            this.dispose();
+        }
     }
 }
-class WordCounterController {
-    constructor(wordCounter) {
-        this._wordCounter = wordCounter;
-        this._wordCounter.updateWordCount();
-        // subscribe to selection change and editor activation events
-        let subscriptions = [];
-        vscode_1.window.onDidChangeTextEditorSelection(this._onEvent, this, subscriptions);
-        vscode_1.window.onDidChangeActiveTextEditor(this._onEvent, this, subscriptions);
-        // create a combined disposable from both event subscriptions
-        this._disposable = vscode_1.Disposable.from(...subscriptions);
+class Pomodoro {
+    constructor(status, time, shortToLongTime) {
+        this._status = status;
+        this._time = time;
+        this._remainTime = time;
+        this._shortToLongTime = shortToLongTime - 1;
+        this._breakTime = shortToLongTime - 1;
     }
-    _onEvent() {
-        this._wordCounter.updateWordCount();
+    isPomodoro() {
+        return Status.pomodoro == this._status();
     }
-    dispose() {
-        this._disposable.dispose();
+    action() {
+        if (this._remainTime < 0) {
+            if (this.isPomodoro()) {
+                if (this._breakTime < 0) {
+                    this._status = Status.shortBreak;
+                    this._remainTime = 5 * 60;
+                    this._breakTime--;
+                }
+                else if (this._breakTime == 0) {
+                    this._status = Status.longBreak;
+                    this._remainTime = 10 * 60;
+                    this._breakTime = this._shortToLongTime;
+                }
+            }
+            else {
+                this._status = Status.pomodoro;
+                this._remainTime = this._time;
+            }
+        }
+        return this;
+    }
+    timer() {
+        this._remainTime--;
+        let text = this._remainTime + "";
+        return this._status.toUpperCase() + ' in ' + text;
     }
 }
 //# sourceMappingURL=extension.js.map
