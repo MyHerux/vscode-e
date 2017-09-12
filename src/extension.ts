@@ -26,7 +26,7 @@ export function activate(context: ExtensionContext) {
 
     let timerStart = commands.registerCommand('pomodoro.start', () => {
         window
-            .showQuickPick(['10 minutes', '20 minutes', '25 minutes', '45 minutes', '60 minutes'])
+            .showQuickPick(['1 minutes', '2 minutes', '3 minutes', '4 minutes'])
             .then((time) => {
                 console.log('time:' + time);
                 if (typeof time == 'undefined') {
@@ -77,6 +77,15 @@ class PomodoroController {
             this._statusBarItem.text = text;
             this._statusBarItem.command = 'timer.cancel';
             this._statusBarItem.tooltip = 'Cancel';
+            if (this._pompdoro.isStatusChange()) {
+                console.log("status:",this._pompdoro.isStatusChange())
+                window
+                    .showInformationMessage(
+                        'Pomodoro Process: ' + this._pompdoro
+                        .getStatus()
+                        .toUpperCase()
+                    );
+            }
         } else {
             this.dispose();
         }
@@ -86,6 +95,7 @@ class PomodoroController {
 class Pomodoro {
 
     private _status;
+    private _statusChange;
     private _time;
     private _remainTime;
     private _shortToLongTime;
@@ -98,16 +108,25 @@ class Pomodoro {
         this._remainTime = time;
         this._shortToLongTime = shortToLongTime - 1;
         this._breakTime = shortToLongTime - 1;
+        this._statusChange = false;
     }
 
     isPomodoro() {
-        return Status.pomodoro == this._status();
+        return Status.pomodoro == this._status;
+    }
+
+    getStatus() {
+        return this._status;
+    }
+
+    isStatusChange() {
+        return this._statusChange;
     }
 
     action() {
         if (this._remainTime < 0) {
             if (this.isPomodoro()) {
-                if (this._breakTime < 0) {
+                if (this._breakTime > 0) {
                     this._status = Status.shortBreak;
                     this._remainTime = 5 * 60;
                     this._breakTime--;
@@ -120,11 +139,13 @@ class Pomodoro {
                 this._status = Status.pomodoro;
                 this._remainTime = this._time;
             }
-        }
+            this._statusChange = true;
+        } else this._statusChange = false;
         return this;
     }
 
     timer() {
+        this.action();
         this._remainTime--;
         let text = this._remainTime + ""
         return this._status.toUpperCase() + ' in ' + text;
