@@ -23,8 +23,10 @@ export function activate(context: ExtensionContext) {
     // Get settings
     //let settings = workspace.getConfiguration().get("tomatoTimer");
     let shortToLongTime = 3;
+    let pomodoro = new Pomodoro("", 10, shortToLongTime);
+    let pomodoroController=new PomodoroController(pomodoro);
 
-    let timerStart = commands.registerCommand('pomodoro.start', () => {
+    let timerStart = commands.registerCommand('pomodoro.start', ()=> {
         window
             .showQuickPick(['1 minutes', '2 minutes', '3 minutes', '4 minutes'])
             .then((time) => {
@@ -35,11 +37,18 @@ export function activate(context: ExtensionContext) {
                 let timePomo = parseInt(time);
                 window.showInformationMessage('Pomodoro start with ' + time + '!');
                 let pomodoro = new Pomodoro(Status.pomodoro, timePomo * 60, shortToLongTime);
-                let pomodoroController = new PomodoroController(pomodoro);
+                pomodoroController = new PomodoroController(pomodoro);
             });
     });
 
     context.subscriptions.push(timerStart);
+
+    let timerStop = commands.registerCommand('pomodoro.cancel',()=>{
+        window.showWarningMessage('Pomodoro timer cancel!');
+        pomodoroController.dispose();
+    })
+
+    context.subscriptions.push(timerStop);
 }
 
 enum Status {
@@ -47,6 +56,7 @@ enum Status {
         shortBreak = 'shortBreak',
         longBreak = 'longBreak'
 }
+
 
 class PomodoroController {
 
@@ -57,7 +67,8 @@ class PomodoroController {
     constructor(pompdoro: Pomodoro) {
         this._pompdoro = pompdoro;
         this._statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 0);
-        this._statusBarItem.command = 'timer.start';
+        this._statusBarItem.text = 'Pomodoro';
+        this._statusBarItem.command = 'pomodoro.start';
         this._statusBarItem.tooltip = 'Click to start a pomodoro';
         this._statusBarItem.show();
 
@@ -75,10 +86,10 @@ class PomodoroController {
         let text = this._pompdoro.timer();
         if (text) {
             this._statusBarItem.text = text;
-            this._statusBarItem.command = 'timer.cancel';
+            this._statusBarItem.command = 'pomodoro.cancel';
             this._statusBarItem.tooltip = 'Cancel';
             if (this._pompdoro.isStatusChange()) {
-                console.log("status:",this._pompdoro.isStatusChange())
+                console.log("status:", this._pompdoro.isStatusChange())
                 window
                     .showInformationMessage(
                         'Pomodoro Process: ' + this._pompdoro
@@ -111,6 +122,11 @@ class Pomodoro {
         this._statusChange = false;
     }
 
+    dispose() {
+        this._status = "";
+        this._remainTime = 0;
+    }
+
     isPomodoro() {
         return Status.pomodoro == this._status;
     }
@@ -124,7 +140,7 @@ class Pomodoro {
     }
 
     action() {
-        if (this._remainTime < 0) {
+        if (this._remainTime <= 0) {
             if (this.isPomodoro()) {
                 if (this._breakTime > 0) {
                     this._status = Status.shortBreak;
@@ -145,9 +161,13 @@ class Pomodoro {
     }
 
     timer() {
+        if(this._status==""){
+            this.dispose();
+            return false;
+        }
         this.action();
         this._remainTime--;
-        let text = this._remainTime + ""
+        let text = this._remainTime + "s"
         return this._status.toUpperCase() + ' in ' + text;
     }
 }

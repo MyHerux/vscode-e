@@ -19,6 +19,10 @@
             {
                 "command": "pomodoro.start",
                 "title": "Pomodoro: Start a pomodoro"
+            },
+            {
+                "command": "pomodoro.cancel",
+                "title": "Pomodoro: Cancel pomodoro"
             }
         ]
     },

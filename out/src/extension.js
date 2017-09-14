@@ -12,6 +12,8 @@ function activate(context) {
     // Get settings
     //let settings = workspace.getConfiguration().get("tomatoTimer");
     let shortToLongTime = 3;
+    let pomodoro = new Pomodoro("", 10, shortToLongTime);
+    let pomodoroController = new PomodoroController(pomodoro);
     let timerStart = vscode_1.commands.registerCommand('pomodoro.start', () => {
         vscode_1.window
             .showQuickPick(['1 minutes', '2 minutes', '3 minutes', '4 minutes'])
@@ -23,10 +25,15 @@ function activate(context) {
             let timePomo = parseInt(time);
             vscode_1.window.showInformationMessage('Pomodoro start with ' + time + '!');
             let pomodoro = new Pomodoro(Status.pomodoro, timePomo * 60, shortToLongTime);
-            let pomodoroController = new PomodoroController(pomodoro);
+            pomodoroController = new PomodoroController(pomodoro);
         });
     });
     context.subscriptions.push(timerStart);
+    let timerStop = vscode_1.commands.registerCommand('pomodoro.cancel', () => {
+        vscode_1.window.showWarningMessage('Pomodoro timer cancel!');
+        pomodoroController.dispose();
+    });
+    context.subscriptions.push(timerStop);
 }
 exports.activate = activate;
 var Status;
@@ -39,7 +46,8 @@ class PomodoroController {
     constructor(pompdoro) {
         this._pompdoro = pompdoro;
         this._statusBarItem = vscode_1.window.createStatusBarItem(vscode_1.StatusBarAlignment.Left, 0);
-        this._statusBarItem.command = 'timer.start';
+        this._statusBarItem.text = 'Pomodoro';
+        this._statusBarItem.command = 'pomodoro.start';
         this._statusBarItem.tooltip = 'Click to start a pomodoro';
         this._statusBarItem.show();
         this._interval = setInterval(() => this.refreshUI(), 1000);
@@ -53,7 +61,7 @@ class PomodoroController {
         let text = this._pompdoro.timer();
         if (text) {
             this._statusBarItem.text = text;
-            this._statusBarItem.command = 'timer.cancel';
+            this._statusBarItem.command = 'pomodoro.cancel';
             this._statusBarItem.tooltip = 'Cancel';
             if (this._pompdoro.isStatusChange()) {
                 console.log("status:", this._pompdoro.isStatusChange());
@@ -77,6 +85,10 @@ class Pomodoro {
         this._breakTime = shortToLongTime - 1;
         this._statusChange = false;
     }
+    dispose() {
+        this._status = "";
+        this._remainTime = 0;
+    }
     isPomodoro() {
         return Status.pomodoro == this._status;
     }
@@ -87,7 +99,7 @@ class Pomodoro {
         return this._statusChange;
     }
     action() {
-        if (this._remainTime < 0) {
+        if (this._remainTime <= 0) {
             if (this.isPomodoro()) {
                 if (this._breakTime > 0) {
                     this._status = Status.shortBreak;
@@ -111,9 +123,13 @@ class Pomodoro {
         return this;
     }
     timer() {
+        if (this._status == "") {
+            this.dispose();
+            return false;
+        }
         this.action();
         this._remainTime--;
-        let text = this._remainTime + "";
+        let text = this._remainTime + "s";
         return this._status.toUpperCase() + ' in ' + text;
     }
 }
